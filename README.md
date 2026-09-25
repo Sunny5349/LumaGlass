@@ -21,7 +21,7 @@
 
 ![创造物品栏玻璃主题](docs/images/creative-inventory.png)
 
-![大箱子的连续玻璃分区](docs/images/storage-container.png)
+![工作区](docs/images/workplace.png)
 
 ## 安装
 
