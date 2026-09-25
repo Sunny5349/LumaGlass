@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory=$true)][string]$MinecraftRoot,
     [string]$InstalledVersion = '1.20.1-Forge_47.4.22',
     [string]$JavaExecutable = 'java',
-    [switch]$RendererMods
+    [switch]$RendererMods,
+    [switch]$Jei
 )
 $ErrorActionPreference = 'Stop'
 $JavaExecutable = (Get-Command $JavaExecutable -ErrorAction Stop).Source
@@ -13,10 +14,15 @@ $installed = Join-Path "$MinecraftRoot/versions" $InstalledVersion
 # Read library coordinates only. Never execute launcher scripts or reuse account tokens/JVM arguments.
 $manifest = Get-Content -LiteralPath "$installed/$InstalledVersion.json" -Raw | ConvertFrom-Json
 $libraries = [IO.Path]::GetFullPath("$MinecraftRoot/libraries")
-$game = Join-Path $project ("run-production-" + $(if ($RendererMods) { 'renderers-' } else { 'vanilla-' }) + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$game = Join-Path $project ("run-production-" + $(if ($RendererMods) { 'renderers-' } else { 'vanilla-' }) + $(if ($Jei) { 'jei-' }) + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Force -Path "$game/mods", "$game/natives" | Out-Null
 Copy-Item -LiteralPath "$project/build/libs/lumaglass-$version.jar", "$project/build/test-mods/lumaglass-smoke-$version.jar" -Destination "$game/mods"
 Copy-Item -Path "$installed/$InstalledVersion-natives/*" -Destination "$game/natives" -Recurse
+if ($Jei) {
+    $jeiMods = @(Get-ChildItem -LiteralPath "$installed/mods" -Filter '*jei*.jar')
+    if ($jeiMods.Count -ne 1) { throw 'Expected exactly one installed JEI JAR' }
+    Copy-Item -LiteralPath $jeiMods[0].FullName -Destination "$game/mods"
+}
 if ($RendererMods) {
     foreach ($pattern in @('embeddium-*.jar', 'oculus-*.jar')) {
         $mods = @(Get-ChildItem -LiteralPath "$installed/mods" -Filter $pattern)

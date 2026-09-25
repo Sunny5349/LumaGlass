@@ -1,6 +1,6 @@
 # LumaGlass 客户端 API v1
 
-Minecraft 1.20.1 / Forge 47.4.22 / Java 17 · LumaGlass 0.2.8
+Minecraft 1.20.1 / Forge 47.4.22 / Java 17 · LumaGlass 0.2.9
 
 ## API 接入教程
 
@@ -22,7 +22,7 @@ repositories {
 }
 
 dependencies {
-    implementation fg.deobf('dev.lumaglass:lumaglass:0.2.8')
+    implementation fg.deobf('dev.lumaglass:lumaglass:0.2.9')
 }
 ```
 
@@ -34,7 +34,7 @@ dependencies {
 [[dependencies.your_mod_id]]
 modId="lumaglass"
 mandatory=true
-versionRange="[0.2.8,0.3.0)"
+versionRange="[0.2.9,0.3.0)"
 ordering="AFTER"
 side="CLIENT"
 ```
@@ -161,6 +161,10 @@ try (GlassFrame frame = canvas.begin(graphics, 5.0f)) {
 0.2.7 默认开启 `otherModUi`，其他模组使用原版按钮、滑块、输入框、列表、提示框、背景绘制或受支持的原版 GUI 贴图时，无需依赖 LumaGlass 或实现任何接口。箱子、末影箱、木桶、潜影盒、漏斗、发射器和投掷器背景按物品区、玩家背包与快捷栏分区，移除逐格凹陷底板。箱子支持 1–6 行以及原版分段绘制。
 
 自动适配识别实际绘制调用，不扫描模组名称。完全自绘的控件、自定义命名空间的背景贴图以及自建 framebuffer 不会自动重建布局；可使用公开 API 适配。`otherModUi=false` 可以关闭其他模组的自动主题，保留原版主题；`GlassThemedScreen` 可明确选择加入，`GlassThemeExempt` 可明确选择退出。
+
+0.2.9 增加 JEI 15 的可选内部绘制器适配：窗口、配方面板、搜索框、分类与控件底板按完整矩形替换，避免九宫格切片碎裂。JEI 不需要作为 LumaGlass 的必装依赖；`otherModUi=false` 同时关闭这部分适配。JEI 图标、进度箭头、机器示意图和第三方自绘配方不在底板替换范围内。公开 API 的方法及 `API_VERSION` 保持不变。
+
+原版 `AdvancementsScreen`（L 键进度页面）固定跳过自动主题；成就通知弹窗仍使用玻璃。配方书保留书本切换图标、筛选与翻页操作，主体及条目背景使用无原贴图暗色浮雕的玻璃面板。
 
 ```java
 class MyScreen extends Screen implements GlassThemedScreen {

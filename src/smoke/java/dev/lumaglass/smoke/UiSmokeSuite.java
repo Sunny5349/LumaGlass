@@ -43,7 +43,9 @@ public final class UiSmokeSuite {
             "glow-red-probe","glow-blue-probe","glow-off-probe","neutral-tint-probe",
             "api-panel-colors","api-panel-colors-disabled","creative-tabs-probe",
             "smooth-blur-15","smooth-blur-max","inventory-continuous",
-            "large-chest","shulker-box","hopper","dispenser","mod-theme-disabled","storage-panels"};
+            "large-chest","shulker-box","hopper","dispenser","mod-theme-disabled","storage-panels",
+            "compat-world","recipe-book","advancement-toast","advancements-vanilla","jei-recipes",
+            "jei-disabled","recipe-toast-pixels"};
     private static boolean worldPrepared;
 
     @SubscribeEvent public static void tick(TickEvent.ClientTickEvent e) {
@@ -51,7 +53,7 @@ public final class UiSmokeSuite {
         Minecraft mc=Minecraft.getInstance();
         if(mc.getOverlay()!=null || !GlassCanvas.isAvailable() || !GlassConfig.SPEC.isLoaded())return;
         if(stage<0) { checkContracts(); next(mc); return; }
-        if(stage==13) {
+        if(stage==13 || stage==45) {
             if(mc.level==null || mc.player==null || mc.screen!=null)return;
             if(!worldPrepared) {
                 worldPrepared=true;
@@ -63,6 +65,7 @@ public final class UiSmokeSuite {
                     player.getInventory().setItem(0,new ItemStack(Items.DIAMOND_SWORD));
                     player.getInventory().setItem(1,new ItemStack(Items.APPLE,16));
                     player.inventoryMenu.broadcastChanges();
+                    player.awardRecipes(server.getRecipeManager().getRecipes());
                 });
             }
         }
@@ -91,7 +94,8 @@ public final class UiSmokeSuite {
 
     private static void next(Minecraft mc) {
         stage++;age=0;captured=false;
-        if(stage==13) {
+        if(stage==13 || stage==45) {
+            worldPrepared=false;
             String worldName="LumaGlass-smoke-"+System.currentTimeMillis();
             var settings=new net.minecraft.world.level.LevelSettings(worldName,
                     net.minecraft.world.level.GameType.SURVIVAL,false,net.minecraft.world.Difficulty.PEACEFUL,
@@ -152,9 +156,33 @@ public final class UiSmokeSuite {
             case 39,40,41,42 -> new ContainerHost();
             case 43 -> {GlassConfig.OTHER_MOD_UI.set(false);yield new WidgetHost();}
             case 44 -> {GlassConfig.OTHER_MOD_UI.set(true);yield new StoragePanelHost();}
+            case 46 -> {
+                mc.player.getRecipeBook().setOpen(net.minecraft.world.inventory.RecipeBookType.CRAFTING,true);
+                yield new InventoryScreen(mc.player);
+            }
+            case 47 -> new ToastHost();
+            case 48 -> new net.minecraft.client.gui.screens.advancements.AdvancementsScreen(mc.player.connection.getAdvancements());
+            case 49,50 -> new InventoryScreen(mc.player);
+            case 51 -> {GlassConfig.OTHER_MOD_UI.set(true);yield new RecipeToastProbe();}
             default -> new dev.lumaglass.client.GlassScreen(null);
         };
         mc.setScreen(screen);
+        if(stage==46 && !((InventoryScreen)screen).getRecipeBookComponent().isVisible())
+            throw new AssertionError("Recipe book did not open");
+        if(stage==49 || stage==50) {
+            GlassConfig.OTHER_MOD_UI.set(stage==49);
+            if(net.minecraftforge.fml.ModList.get().isLoaded("jei")) {
+                try {
+                    Object runtime=Class.forName("mezz.jei.common.Internal").getMethod("getJeiRuntime").invoke(null);
+                    Object gui=Class.forName("mezz.jei.api.runtime.IJeiRuntime").getMethod("getRecipesGui").invoke(runtime);
+                    Object crafting=Class.forName("mezz.jei.api.constants.RecipeTypes").getField("CRAFTING").get(null);
+                    Class.forName("mezz.jei.api.runtime.IRecipesGui").getMethod("showTypes",java.util.List.class)
+                            .invoke(gui,java.util.List.of(crafting));
+                    if(!mc.screen.getClass().getName().startsWith("mezz.jei."))throw new AssertionError("JEI recipes did not open");
+                    LogUtils.getLogger().info("LUMAGLASS_JEI_OPEN_PASS themed={}",stage==49);
+                } catch(ReflectiveOperationException ex) {throw new RuntimeException(ex);}
+            }
+        }
         if(stage==33 || stage==34) {
             GlassConfig.GLOW_ENABLED.set(stage==33); GlassConfig.GLOW_COLOR.set(0x00ff00); GlassConfig.GLOW_STRENGTH.set(1.0);
         }
@@ -233,7 +261,7 @@ public final class UiSmokeSuite {
         }
     }
     @SubscribeEvent public static void hud(RenderGuiEvent.Post e) {
-        if((stage==13 || stage==18) && Minecraft.getInstance().screen==null) capture(e.getGuiGraphics());
+        if((stage==13 || stage==18 || stage==45) && Minecraft.getInstance().screen==null) capture(e.getGuiGraphics());
     }
     private static void capture(GuiGraphics graphics) {
         if(stage==19 && age==32) {
@@ -243,6 +271,7 @@ public final class UiSmokeSuite {
         }
         if(stage<0 || finished || captured || age<25 || (stage==12&&!reloaded))return;
         if(Minecraft.getInstance().getOverlay()!=null)return;
+        if(stage==48 && dev.lumaglass.client.theme.VanillaGlass.active())throw new AssertionError("Advancements screen must stay vanilla");
         graphics.flush();
         int error=GL11.glGetError();
         if(error!=GL11.GL_NO_ERROR)throw new IllegalStateException("OpenGL error "+error+" at "+NAMES[stage]);
@@ -537,6 +566,59 @@ public final class UiSmokeSuite {
             try{red.withGlowColor(invalid);throw new AssertionError("Invalid RGB accepted");}catch(IllegalArgumentException expected){}
         GlassCanvas canvas=new GlassCanvas();canvas.close();canvas.close();
         LogUtils.getLogger().info("LUMAGLASS_API_CONTRACT_PASS");
+    }
+
+    private static final class ToastHost extends Screen {
+        private final net.minecraft.client.gui.components.toasts.AdvancementToast toast;
+        ToastHost() {
+            super(Component.literal("Advancement toast"));
+            var advancement=net.minecraft.advancements.Advancement.Builder.advancement()
+                    .display(Items.DIAMOND,Component.literal("Diamonds!"),Component.literal("Acquire diamonds"),null,
+                            net.minecraft.advancements.FrameType.TASK,true,true,false)
+                    .build(new ResourceLocation("lumaglass_smoke","toast"));
+            toast=new net.minecraft.client.gui.components.toasts.AdvancementToast(advancement);
+        }
+        @Override public void render(GuiGraphics g,int mx,int my,float dt) {
+            g.pose().pushPose();g.pose().translate(width-170,15,200);
+            toast.render(g,minecraft.getToasts(),1000);g.pose().popPose();
+        }
+    }
+
+    private static final class RecipeToastProbe extends Screen {
+        private boolean checked;
+        RecipeToastProbe(){super(Component.literal("Recipe book and toast backing"));}
+        @Override public void render(GuiGraphics g,int mx,int my,float dt) {
+            g.fill(0,0,width,height,0xff808080);
+            g.blit(new ResourceLocation("textures/gui/recipe_book.png"),15,20,1,1,147,166);
+            g.blit(new ResourceLocation("textures/gui/toasts.png"),180,30,0,0,160,32);
+            boolean jei=net.minecraftforge.fml.ModList.get().isLoaded("jei");
+            if(jei)try {
+                Object textures=Class.forName("mezz.jei.common.Internal").getMethod("getTextures").invoke(null);
+                Object panel=textures.getClass().getMethod("getRecipeGuiBackground").invoke(textures);
+                panel.getClass().getMethod("draw",GuiGraphics.class,int.class,int.class,int.class,int.class)
+                        .invoke(panel,g,180,90,160,95);
+                Object slot=textures.getClass().getMethod("getSlot").invoke(textures);
+                slot.getClass().getMethod("draw",GuiGraphics.class,int.class,int.class).invoke(slot,g,190,105);
+            } catch(ReflectiveOperationException ex) {throw new RuntimeException(ex);}
+            g.flush();
+            if(!checked)try(var image=Screenshot.takeScreenshot(minecraft.getMainRenderTarget())) {
+                double scale=minecraft.getWindow().getGuiScale();
+                for(int[] area:new int[][]{{25,55,125,120},{190,38,140,16}}) {
+                    for(int y=area[1];y<area[1]+area[3];y++)for(int x=area[0];x<area[0]+area[2];x++) {
+                        int p=image.getPixelRGBA((int)(x*scale),(int)(y*scale))&255;
+                        if(p<115 || p>135)throw new AssertionError("Dark or pale backing survived at "+x+","+y+": "+p);
+                    }
+                }
+                if(jei) {
+                    for(int[] point:new int[][]{{230,130},{199,114}}) {
+                        int p=image.getPixelRGBA((int)(point[0]*scale),(int)(point[1]*scale))&255;
+                        if(p<115 || p>135)throw new AssertionError("JEI backing hook did not replace atlas: "+p);
+                    }
+                    LogUtils.getLogger().info("LUMAGLASS_JEI_BACKING_PASS");
+                }
+                checked=true;LogUtils.getLogger().info("LUMAGLASS_RECIPE_TOAST_BACKING_PASS");
+            }
+        }
     }
 
     private static final class ContainerHost extends Screen {

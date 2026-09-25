@@ -34,6 +34,7 @@ public final class VanillaGlass {
         if (mc.getOverlay() != null) return false;
         Screen screen = mc.screen;
         return hudPass || screen == null || (!(screen instanceof GlassThemeExempt)
+                && !(screen instanceof net.minecraft.client.gui.screens.advancements.AdvancementsScreen)
                 && (screen instanceof GlassThemedScreen || screen.getClass().getName().startsWith("net.minecraft.") || GlassConfig.OTHER_MOD_UI.get()));
     }
 
@@ -73,10 +74,22 @@ public final class VanillaGlass {
         if (!active()) return false;
         int w = x2-x1, h = y2-y1;
         if (w <= 0 || h <= 0) return false;
+        if (texture.getNamespace().equals("minecraft") && texture.getPath().equals("textures/gui/recipe_button.png")
+                && w==20 && h==18) {
+            panel(g,x1,y1,w,h,4,v0>0,RenderSystem.getShaderColor()[3]);
+            drawing++;
+            try {g.renderFakeItem(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.KNOWLEDGE_BOOK),x1+2,y1+1);}
+            finally {drawing--;}
+            return true;
+        }
         boolean progressBar=texture.getNamespace().equals("minecraft") && texture.getPath().equals("textures/gui/icons.png")
                 && h==5 && w>=1 && (Math.abs(v0-64f/256f)<.0001f || Math.abs(v0-69f/256f)<.0001f
                 || Math.abs(v0-84f/256f)<.0001f || Math.abs(v0-89f/256f)<.0001f);
         if (!progressBar && !skinTexture(texture.getNamespace(), texture.getPath(), v0)) return false;
+        if (texture.getPath().equals("textures/gui/recipe_book.png"))
+            return recipeBook(g,x1,y1,w,h,Math.round(u0*256),Math.round(v0*256));
+        if (texture.getPath().equals("textures/gui/toasts.png") && w == 160 && h == 32)
+            return panel(g,x1,y1,w,h,7,false,RenderSystem.getShaderColor()[3]);
         if (storagePanels(g,texture.getPath(),x1,y1,w,h,u0,v0,RenderSystem.getShaderColor()[3])) return true;
         // Keep glass close to usable slots and leave the player preview open.
         // Items, empty equipment icons and interaction overlays are drawn by vanilla.
@@ -133,6 +146,53 @@ public final class VanillaGlass {
             panel(g,x+7,y+16,164,92,7,false,opacity);
             panel(g,x+7,y+110,164,20,6,false,opacity);
         }
+    }
+
+    private static boolean recipeBook(GuiGraphics g,int x,int y,int w,int h,int u,int v) {
+        float opacity=RenderSystem.getShaderColor()[3];
+        if (u==1 && v==1 && w==147 && h==166) {
+            panel(g,x,y,w,h,8,false,opacity);
+            // The magnifier was baked into the removed page. Keep it as an independent glyph.
+            drawing++;
+            try {
+                int color=(Math.round(opacity*255)<<24)|0xe6edf2;
+                int[][] strokes={{13,14,17,15},{12,15,13,19},{17,15,18,19},{13,19,17,20},
+                        {11,20,13,22},{9,22,11,24}};
+                for(int[] s:strokes)g.fill(x+s[0],y+s[1],x+s[2],y+s[3],color);
+            } finally {drawing--;}
+            return true;
+        }
+        if ((u==153 || u==188) && v==2 && w==35 && h==27)
+            return panel(g,x,y,w,h,6,u==188,opacity);
+        if (w==25 && h==25 && (u==29 || u==54) && (v==206 || v==231)) {
+            panel(g,x,y,w,h,5,false,opacity);
+            if(u==54) {
+                drawing++;
+                try {g.renderOutline(x+1,y+1,w-2,h-2,0x80cf5d5d);} finally {drawing--;}
+            }
+            return true;
+        }
+        if(w==24 && h==24 && (u==152 || u==178) && (v==78 || v==104 || v==130 || v==156))
+            return panel(g,x,y,w,h,5,v==104 || v==156,opacity);
+        if(w==26 && h==16 && (u==152 || u==180) && (v==41 || v==59 || v==182 || v==200)) {
+            panel(g,x,y,w,h,4,v==59 || v==200,opacity);
+            drawing++;
+            try {
+                g.renderFakeItem(new net.minecraft.world.item.ItemStack(v>=182
+                        ? net.minecraft.world.item.Items.FURNACE : net.minecraft.world.item.Items.CRAFTING_TABLE),x+11,y);
+                int color=(Math.round(opacity*255)<<24)|(u==180?0x70dd74:0xe47272);
+                if(u==180) {
+                    g.fill(x+2,y+8,x+4,y+10,color);g.fill(x+4,y+10,x+6,y+12,color);
+                    for(int i=0;i<5;i++)g.fill(x+5+i,y+10-i,x+7+i,y+12-i,color);
+                } else for(int i=0;i<7;i++) {
+                    g.fill(x+2+i,y+4+i,x+4+i,y+6+i,color);
+                    g.fill(x+2+i,y+10-i,x+4+i,y+12-i,color);
+                }
+            } finally {drawing--;}
+            return true;
+        }
+        // Page arrows are artwork, not glass surfaces.
+        return false;
     }
 
     /** Match vanilla storage artwork, including the chest's two separately blitted slices.
@@ -217,7 +277,7 @@ public final class VanillaGlass {
         // The shared atlas includes hotbar pieces and language/accessibility button artwork.
         if (path.equals("textures/gui/widgets.png")) return true;
         return path.startsWith("textures/gui/container/") || path.startsWith("textures/gui/advancements/")
-                || path.equals("textures/gui/recipe_book.png") || path.equals("textures/gui/recipe_button.png") || path.equals("textures/gui/book.png")
+                || path.equals("textures/gui/recipe_book.png") || path.equals("textures/gui/book.png")
                 || path.equals("textures/gui/demo_background.png") || path.equals("textures/gui/toasts.png")
                 || path.equals("textures/gui/bars.png") || path.equals("textures/gui/spectator_widgets.png")
                 || path.equals("textures/gui/social_interactions.png") || path.equals("textures/gui/report_button.png")
@@ -253,7 +313,7 @@ public final class VanillaGlass {
                 finally { if (depth) RenderSystem.enableDepthTest(); }
             }
             // Neutral dimming: menu readability must not tint the panorama blue.
-            g.fillGradient(0, 0, width, height, 0x451c1c1c, 0x752e2e2e);
+            g.fillGradient(0, 0, width, height, 0x45000000, 0x75000000);
             g.flush();
         } finally { drawing--; }
         resetPass();

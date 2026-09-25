@@ -26,6 +26,9 @@ public abstract class SelectionListMixin {
     @Inject(method="render",at=@At(value="INVOKE",target="Lnet/minecraft/client/gui/components/AbstractSelectionList;renderBackground(Lnet/minecraft/client/gui/GuiGraphics;)V",shift=At.Shift.AFTER))
     private void lumaglass$surface(GuiGraphics g,int mx,int my,float dt,CallbackInfo ci) {
         if (!lumaglass$changed) return;
+        var screen=net.minecraft.client.Minecraft.getInstance().screen;
+        if (screen instanceof net.minecraft.client.gui.screens.worldselection.SelectWorldScreen
+                || screen instanceof net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen) return;
         VanillaGlass.panel(g,x0+2,y0,x1-x0-4,y1-y0,10,false);
     }
     @Inject(method="render",at=@At("RETURN"))

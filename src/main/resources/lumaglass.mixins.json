@@ -6,7 +6,8 @@
   "refmap": "lumaglass.refmap.json",
   "client": [
     "ButtonMixin", "SliderMixin", "EditBoxMixin", "CheckboxMixin", "CreativeInventoryMixin", "ChatMixin",
-    "ScreenMixin", "SelectWorldScreenMixin", "SelectionListMixin", "GuiGraphicsMixin", "TooltipMixin"
+    "ScreenMixin", "SelectWorldScreenMixin", "SelectionListMixin", "GuiGraphicsMixin", "TooltipMixin",
+    "JeiNineSliceMixin", "JeiSpriteMixin"
   ],
   "injectors": { "defaultRequire": 1 }
 }

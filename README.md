@@ -4,7 +4,7 @@
 
 实时模糊与折射让菜单、容器和控件透出背景；圆角边缘、可调泛光与独立面板材质可以用于原版界面，也可以由其他模组接入。
 
-**版本：0.2.8 · 作者：Sunny5349 · 许可证：MIT**
+**版本：0.2.9 · 作者：Sunny5349 · 许可证：MIT**
 
 ## 功能
 
@@ -17,7 +17,11 @@
 
 生存和创造背包使用紧凑分区：物品区共用一块玻璃，快捷栏独立成条，装备位使用小面板，人物周围留空，移除逐格凹陷底板。创造分类使用圆形按钮，聊天历史共用一块底板。模糊采用逐级低通缩小和密集高斯采样，泛光默认关闭。旧配置保留已有数值，可在工作室点击“重置”应用新版默认材质。
 
-箱子类界面使用同样的连续玻璃分区，并默认自动适配其他模组复用的原版 UI。0.2.8 补回创造背包的摧毁物品图标；材质默认值改为模糊 15%、折射 24、磨砂 100%、表面色调 0%，泛光关闭。升级后点击工作室“重置”可应用这些默认值并启用其他模组的自动主题。
+箱子类界面使用同样的连续玻璃分区，并默认自动适配其他模组复用的原版 UI。创造背包保留摧毁物品图标；材质默认值为模糊 15%、折射 24、磨砂 100%、表面色调 0%，泛光关闭。升级后点击工作室“重置”可应用这些默认值并启用其他模组的自动主题。
+
+0.2.9 移除配方书与成就弹窗底板里的暗色遮罩，书本与筛选按钮使用独立图标，保留开关、筛选和翻页操作。按 **L** 打开的进度页面保持原版。单人和多人列表取消整页玻璃叠层，菜单背景使用纯黑透明遮罩调暗，避免额外泛白。
+
+**JEI 15 可选适配：** 合成查询窗口、配方面板、分类标签、搜索框、按钮和槽位底板使用玻璃，物品、配方箭头与机器示意图保留。无需安装额外桥接模组；受 `otherModUi` 开关控制。适配针对 JEI 15 的内置绘制器，其他模组完全自绘的配方背景仍需主动接入 API。
 
 ![创造物品栏玻璃主题](docs/images/creative-inventory.png)
 
@@ -27,7 +31,7 @@
 
 需要 Minecraft **1.20.1**、Forge **47.4.22** 和 Java **17**。本模组仅在客户端安装。
 
-1. 将 `lumaglass-0.2.8.jar` 放入该游戏实例的 `mods` 目录。
+1. 将 `lumaglass-0.2.9.jar` 放入该游戏实例的 `mods` 目录。
 2. 升级时移除旧版本，只保留一个 LumaGlass JAR。不要安装 `-sources.jar` 或测试辅助模组。
 3. 启动游戏，原版 UI 主题默认生效。
 
@@ -69,7 +73,7 @@ repositories {
 }
 
 dependencies {
-    implementation fg.deobf('dev.lumaglass:lumaglass:0.2.8')
+    implementation fg.deobf('dev.lumaglass:lumaglass:0.2.9')
 }
 ```
 
@@ -81,7 +85,7 @@ dependencies {
 [[dependencies.your_mod_id]]
 modId="lumaglass"
 mandatory=true
-versionRange="[0.2.8,0.3.0)"
+versionRange="[0.2.9,0.3.0)"
 ordering="AFTER"
 side="CLIENT"
 ```
@@ -256,6 +260,8 @@ sh gradlew runClient
 .\scripts\test-production.ps1 -MinecraftRoot 'X:\Games\Minecraft\.minecraft'
 # Also test installed Embeddium/Oculus without enabling a shader pack
 .\scripts\test-production.ps1 -MinecraftRoot 'X:\Games\Minecraft\.minecraft' -RendererMods
+# Include installed JEI to exercise actual recipe screens and optional drawing hooks
+.\scripts\test-production.ps1 -MinecraftRoot 'X:\Games\Minecraft\.minecraft' -Jei
 ```
 
 测试自动创建独立目录和新世界，完成后退出。`build/test-mods` 中的模组仅用于自动测试，不用于正常游戏。
