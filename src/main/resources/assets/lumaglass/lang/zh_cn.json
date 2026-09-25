@@ -10,7 +10,7 @@
   "screen.lumaglass.drag": "拖动卡片，观察边缘折射",
   "screen.lumaglass.on": "玻璃 / 开启",
   "screen.lumaglass.off": "玻璃 / 关闭",
-  "screen.lumaglass.blur": "模糊半径",
+  "screen.lumaglass.blur": "模糊强度",
   "screen.lumaglass.refraction": "折射强度",
   "screen.lumaglass.frost": "磨砂程度",
   "screen.lumaglass.tint": "表面色调",

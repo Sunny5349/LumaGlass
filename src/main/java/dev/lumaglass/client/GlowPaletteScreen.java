@@ -85,7 +85,7 @@ public final class GlowPaletteScreen extends Screen implements GlassThemedScreen
             @Override protected void applyValue() { GlassConfig.GLOW_STRENGTH.set(value*2); }
         });
         addRenderableWidget(Button.builder(tr("reset"),b -> {
-            GlassConfig.GLOW_ENABLED.set(true); GlassConfig.GLOW_STRENGTH.set(1.0);
+            GlassConfig.GLOW_ENABLED.set(false); GlassConfig.GLOW_STRENGTH.set(1.0);
             readColor(0xffffff); applyColor(); rebuildWidgets();
         }).bounds(left+12,top+198,(panelWidth-32)/2,20).build());
         addRenderableWidget(Button.builder(tr("done"),b -> onClose())

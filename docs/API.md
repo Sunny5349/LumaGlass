@@ -1,10 +1,10 @@
 # LumaGlass 客户端 API v1
 
-Minecraft 1.20.1 / Forge 47.4.22 / Java 17 · LumaGlass 0.2.5
+Minecraft 1.20.1 / Forge 47.4.22 / Java 17 · LumaGlass 0.2.8
 
 ## API 接入教程
 
-公开包为 `dev.lumaglass.api.client`，`GlassCanvas.API_VERSION = 1`。以下新增独立泛光颜色的用法需要 **LumaGlass 0.2.5 或更高版本**。
+公开包为 `dev.lumaglass.api.client`，`GlassCanvas.API_VERSION = 1`。独立泛光颜色需要 **LumaGlass 0.2.5 或更高版本**；0.2.6 改善模糊质量，调用方式不变。
 
 ### 1. 添加构建依赖
 
@@ -22,7 +22,7 @@ repositories {
 }
 
 dependencies {
-    implementation fg.deobf('dev.lumaglass:lumaglass:0.2.5')
+    implementation fg.deobf('dev.lumaglass:lumaglass:0.2.8')
 }
 ```
 
@@ -34,7 +34,7 @@ dependencies {
 [[dependencies.your_mod_id]]
 modId="lumaglass"
 mandatory=true
-versionRange="[0.2.5,0.3.0)"
+versionRange="[0.2.8,0.3.0)"
 ordering="AFTER"
 side="CLIENT"
 ```
@@ -127,7 +127,7 @@ GlassStyle followUser = pink.withGlobalGlowColor();
 
 ![同一画布上红色、蓝色和全局绿色泛光；下排为贴图面板](images/panel-glow-colors.png)
 
-**泛光总开关和强度仍由用户控制。** 独立颜色不能绕过 `glowEnabled=false`；`glowStrength=0` 时同样不产生泛光。颜色 `0x000000` 可让特定面板没有额外泛光，保留其他材质效果。颜色只影响亮光，不修改纹理图标、文字或背景本身。
+**泛光总开关和强度仍由用户控制，0.2.6 起默认关闭泛光。** 独立颜色不能绕过 `glowEnabled=false`；`glowStrength=0` 时同样不产生泛光。用户在调色盘开启泛光后，独立颜色才会显示。颜色 `0x000000` 可让特定面板没有额外泛光，保留其他材质效果。颜色只影响亮光，不修改纹理图标、文字或背景本身。
 
 ### 4. 绘制带贴图的玻璃面板
 
@@ -146,6 +146,7 @@ try (GlassFrame frame = canvas.begin(graphics, 5.0f)) {
 
 - 每个 Screen 或覆盖层持有自己的 `GlassCanvas`，复用到后续渲染帧。不要每帧创建并销毁画布。
 - `begin(graphics, blurRadius)` 在背景绘制完后采样一次。模糊半径范围为 0–64。
+- 0.2.6 使用逐级低通缩小和密集高斯采样；推荐 `blurRadius=4.8`、材质 `frost=1` 获得工作室默认 15% 的平滑效果。降低 `frost` 会重新混入清晰背景，这与提高模糊半径是不同的操作。
 - 一个 canvas 同时只能有一个未关闭的 frame；使用 try-with-resources。已关闭的 frame 不可继续绘制。
 - 不同 canvas 的快照相互独立，可以嵌套。一个 frame 内的后续面板不会递归采样前面面板的结果。
 - 先绘制所有玻璃，再绘制它们上面的文字、图标和物品。
@@ -156,6 +157,10 @@ try (GlassFrame frame = canvas.begin(graphics, 5.0f)) {
 - `GlassCanvas.isAvailable()` 表示玻璃 shader 已加载。未加载时使用简单半透明矩形回退，回退没有折射或泛光。
 
 ### 6. 接入自动主题
+
+0.2.7 默认开启 `otherModUi`，其他模组使用原版按钮、滑块、输入框、列表、提示框、背景绘制或受支持的原版 GUI 贴图时，无需依赖 LumaGlass 或实现任何接口。箱子、末影箱、木桶、潜影盒、漏斗、发射器和投掷器背景按物品区、玩家背包与快捷栏分区，移除逐格凹陷底板。箱子支持 1–6 行以及原版分段绘制。
+
+自动适配识别实际绘制调用，不扫描模组名称。完全自绘的控件、自定义命名空间的背景贴图以及自建 framebuffer 不会自动重建布局；可使用公开 API 适配。`otherModUi=false` 可以关闭其他模组的自动主题，保留原版主题；`GlassThemedScreen` 可明确选择加入，`GlassThemeExempt` 可明确选择退出。
 
 ```java
 class MyScreen extends Screen implements GlassThemedScreen {

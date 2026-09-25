@@ -50,7 +50,7 @@ public final class GlassScreen extends Screen implements dev.lumaglass.api.clien
         originY = (height - 280 * scale) / 2;
         pixelScale = (float)minecraft.getWindow().getGuiScale() * scale;
         dragging = false;
-        addRenderableWidget(new MaterialSlider(248, 84, "blur", blur / 16, 16, v -> blur = (float)v));
+        addRenderableWidget(new MaterialSlider(248, 84, "blur", blur / 32, 32, v -> blur = (float)v));
         addRenderableWidget(new MaterialSlider(248, 119, "refraction", refraction / 24, 24, v -> refraction = (float)v));
         addRenderableWidget(new MaterialSlider(248, 154, "frost", frost, 1, v -> frost = (float)v));
         addRenderableWidget(new MaterialSlider(248, 189, "tint", tint / .4, .4, v -> tint = (float)v));
@@ -58,9 +58,13 @@ public final class GlassScreen extends Screen implements dev.lumaglass.api.clien
         addRenderableWidget(new GlassButton(96, 245, 88, tr("pattern"), () -> pattern = !pattern));
         addRenderableWidget(new GlassButton(192, 245, 112, tr("glowPalette"), () -> minecraft.setScreen(new GlowPaletteScreen(this))));
         addRenderableWidget(new GlassButton(312, 245, 68, tr("reset"), () -> {
-            blur = 5; refraction = 9; frost = .65f; tint = .12f;
+            blur = GlassConfig.BLUR.getDefault().floatValue();
+            refraction = GlassConfig.REFRACTION.getDefault().floatValue();
+            frost = GlassConfig.FROST.getDefault().floatValue();
+            tint = GlassConfig.TINT.getDefault().floatValue();
+            GlassConfig.OTHER_MOD_UI.set(GlassConfig.OTHER_MOD_UI.getDefault());
             cardX = 0; cardY = 58; enabled = true;
-            GlassConfig.GLOW_ENABLED.set(true); GlassConfig.GLOW_COLOR.set(0xffffff); GlassConfig.GLOW_STRENGTH.set(1.0);
+            GlassConfig.GLOW_ENABLED.set(false); GlassConfig.GLOW_COLOR.set(0xffffff); GlassConfig.GLOW_STRENGTH.set(1.0);
             rebuildWidgets();
         }));
         addRenderableWidget(new GlassButton(388, 245, 72, tr("done"), this::onClose));
@@ -195,7 +199,8 @@ public final class GlassScreen extends Screen implements dev.lumaglass.api.clien
             updateMessage();
         }
         @Override protected void updateMessage() {
-            String number = max <= 1 ? String.format(Locale.ROOT, "%.0f%%", value*max*100)
+            String number = label.equals("blur") ? String.format(Locale.ROOT, "%.0f%%", value*100)
+                    : max <= 1 ? String.format(Locale.ROOT, "%.0f%%", value*max*100)
                     : String.format(Locale.ROOT, "%.1f", value*max);
             setMessage(tr(label).copy().append("  " + number));
         }

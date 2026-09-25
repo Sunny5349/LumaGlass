@@ -5,7 +5,7 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "lumaglass.refmap.json",
   "client": [
-    "ButtonMixin", "SliderMixin", "EditBoxMixin", "CheckboxMixin",
+    "ButtonMixin", "SliderMixin", "EditBoxMixin", "CheckboxMixin", "CreativeInventoryMixin", "ChatMixin",
     "ScreenMixin", "SelectWorldScreenMixin", "SelectionListMixin", "GuiGraphicsMixin", "TooltipMixin"
   ],
   "injectors": { "defaultRequire": 1 }

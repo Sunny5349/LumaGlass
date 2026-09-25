@@ -77,11 +77,20 @@ public final class VanillaGlass {
                 && h==5 && w>=1 && (Math.abs(v0-64f/256f)<.0001f || Math.abs(v0-69f/256f)<.0001f
                 || Math.abs(v0-84f/256f)<.0001f || Math.abs(v0-89f/256f)<.0001f);
         if (!progressBar && !skinTexture(texture.getNamespace(), texture.getPath(), v0)) return false;
+        if (storagePanels(g,texture.getPath(),x1,y1,w,h,u0,v0,RenderSystem.getShaderColor()[3])) return true;
+        // Keep glass close to usable slots and leave the player preview open.
+        // Items, empty equipment icons and interaction overlays are drawn by vanilla.
+        if (u0 == 0 && v0 == 0 && w >= 170 && h >= 100
+                && (texture.getPath().equals("textures/gui/container/inventory.png")
+                || texture.getPath().startsWith("textures/gui/container/creative_inventory/tab_"))) {
+            inventoryPanels(g, texture.getPath(), x1, y1, RenderSystem.getShaderColor()[3]);
+            return true;
+        }
         if (texture.getPath().equals("textures/gui/container/creative_inventory/tabs.png") && w == 26 && h == 32) {
             // Items are drawn separately by CreativeModeInventoryScreen. Replace the
             // whole tab backing so the inactive atlas's recessed dark face is not retained.
             boolean selected = Math.abs(v0-32f/256f)<.0001f || Math.abs(v0-96f/256f)<.0001f;
-            return panel(g,x1,y1,w,h,7,selected,RenderSystem.getShaderColor()[3]);
+            return panel(g,x1,y1+3,w,w,w*.5f,selected,RenderSystem.getShaderColor()[3]);
         }
         if (texture.getPath().equals("textures/gui/container/creative_inventory/tabs.png")
                 && w == 12 && h == 15 && v0 == 0 && u0 >= 232f/256f) {
@@ -101,6 +110,88 @@ public final class VanillaGlass {
             float opacity = RenderSystem.getShaderColor()[3];
             frame(g).texturedPanel(x1, y1, w, h, style(radius, false).withOpacity(opacity), texture, u0, v0, u1, v1);
             return true;
+        } finally { drawing--; }
+    }
+
+    private static void inventoryPanels(GuiGraphics g, String path, int x, int y, float opacity) {
+        if (path.equals("textures/gui/container/inventory.png")) {
+            panel(g,x+6,y+82,164,56,7,false,opacity);
+            panel(g,x+6,y+140,164,20,6,false,opacity);
+            for (int row=0;row<4;row++) equipmentPanel(g,x+8,y+8+row*18,opacity);
+            equipmentPanel(g,x+77,y+62,opacity);
+            panel(g,x+96,y+16,38,38,6,false,opacity);
+            equipmentPanel(g,x+154,y+28,opacity);
+        } else if (path.endsWith("/tab_inventory.png")) {
+            panel(g,x+7,y+52,164,56,7,false,opacity);
+            panel(g,x+7,y+110,164,20,6,false,opacity);
+            for (int column=0;column<2;column++) for (int row=0;row<2;row++)
+                equipmentPanel(g,x+54+column*54,y+6+row*27,opacity);
+            equipmentPanel(g,x+35,y+20,opacity);
+            equipmentPanel(g,x+173,y+112,opacity);
+            destroyIcon(g,x+173,y+112,opacity);
+        } else {
+            panel(g,x+7,y+16,164,92,7,false,opacity);
+            panel(g,x+7,y+110,164,20,6,false,opacity);
+        }
+    }
+
+    /** Match vanilla storage artwork, including the chest's two separately blitted slices.
+     * Matching draw calls also covers mod screens reusing these textures, without a mod dependency.
+     * Unknown artwork continues through texturedPanel so machine diagrams are preserved.
+     */
+    private static boolean storagePanels(GuiGraphics g, String path, int x, int y, int w, int h,
+                                         float u, float v, float opacity) {
+        if (u != 0 || w != 176) return false;
+        if (path.equals("textures/gui/container/generic_54.png")) {
+            if (v == 0 && h >= 35 && h <= 125 && (h-17)%18 == 0) {
+                panel(g,x+6,y+16,164,h-15,7,false,opacity);
+                return true;
+            }
+            if (Math.abs(v-126f/256f)<.0001f && h == 96) {
+                playerStorage(g,x,y+11,opacity);
+                return true;
+            }
+            // Some screens draw the entire six-row atlas in one call.
+            if (v == 0 && h == 222) {
+                panel(g,x+6,y+16,164,110,7,false,opacity);
+                playerStorage(g,x,y+137,opacity);
+                return true;
+            }
+            return false;
+        }
+        if (v != 0) return false;
+        if (path.equals("textures/gui/container/shulker_box.png") && h == 167) {
+            panel(g,x+6,y+16,164,56,7,false,opacity);
+            playerStorage(g,x,y+82,opacity);
+        } else if (path.equals("textures/gui/container/hopper.png") && h == 133) {
+            panel(g,x+42,y+18,92,20,6,false,opacity);
+            playerStorage(g,x,y+49,opacity);
+        } else if (path.equals("textures/gui/container/dispenser.png") && h == 166) {
+            panel(g,x+60,y+15,56,56,7,false,opacity);
+            playerStorage(g,x,y+82,opacity);
+        } else return false;
+        return true;
+    }
+
+    private static void playerStorage(GuiGraphics g, int x, int y, float opacity) {
+        panel(g,x+6,y,164,56,7,false,opacity);
+        panel(g,x+6,y+58,164,20,6,false,opacity);
+    }
+
+    private static void equipmentPanel(GuiGraphics g, int x, int y, float opacity) {
+        panel(g,x-1,y-1,18,18,4,false,opacity);
+    }
+
+    // The vanilla destroy symbol is baked into the removed inventory background.
+    // Draw a separate trash-can glyph so the action stays identifiable on glass.
+    private static void destroyIcon(GuiGraphics g, int x, int y, float opacity) {
+        drawing++;
+        try {
+            int alpha=Math.round(255*Math.max(0,Math.min(1,opacity)));
+            int[][] strokes={{6,2,10,3},{3,4,13,5},{4,6,5,13},{11,6,12,13},
+                    {5,13,11,14},{7,6,8,12},{9,6,10,12}};
+            for(int[] s:strokes) g.fill(x+s[0]+1,y+s[1]+1,x+s[2]+1,y+s[3]+1,(alpha<<24)|0x303030);
+            for(int[] s:strokes) g.fill(x+s[0],y+s[1],x+s[2],y+s[3],(alpha<<24)|0xeff5ff);
         } finally { drawing--; }
     }
 

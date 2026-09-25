@@ -11,6 +11,8 @@
     }
   ],
   "uniforms": [
+    { "name": "SourceTexel", "type": "float", "count": 2, "values": [1, 1] },
+    { "name": "Downsample", "type": "float", "count": 1, "values": [0] },
     {
       "name": "Direction",
       "type": "float",

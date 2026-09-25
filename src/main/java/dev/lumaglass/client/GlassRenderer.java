@@ -20,6 +20,7 @@ public final class GlassRenderer {
     public static ShaderInstance glassShader;
     public static ShaderInstance blurShader;
     private RenderTarget scene, ping, blurred;
+    private final java.util.List<RenderTarget> pyramid = new java.util.ArrayList<>();
     private boolean captured;
     private boolean hasBlur;
 
@@ -32,6 +33,8 @@ public final class GlassRenderer {
         if (scene != null) scene.destroyBuffers();
         if (ping != null) ping.destroyBuffers();
         if (blurred != null) blurred.destroyBuffers();
+        for (RenderTarget level : pyramid) level.destroyBuffers();
+        pyramid.clear();
         scene = ping = blurred = null;
         captured = false;
     }
@@ -53,8 +56,6 @@ public final class GlassRenderer {
             if (scene == null || scene.width != main.width || scene.height != main.height) {
                 release();
                 scene = target(main.width, main.height);
-                ping = target(Math.max(1, main.width / 2), Math.max(1, main.height / 2));
-                blurred = target(ping.width, ping.height);
             }
             RenderSystem.disableScissor();
             RenderSystem.disableDepthTest();
@@ -68,8 +69,26 @@ public final class GlassRenderer {
                     GL11.GL_COLOR_BUFFER_BIT, GL11.GL_NEAREST);
             hasBlur = radius > 0;
             if (hasBlur) {
-                pass(scene, ping, radius * pixelScale / scene.width, 0);
-                pass(ping, blurred, 0, radius * pixelScale / scene.height);
+                float physicalRadius = radius * pixelScale;
+                int levels = 0;
+                // Keep adjacent Gaussian taps at most one texel apart. Each reduction
+                // low-passes both axes before decimation, avoiding skipped pixel detail.
+                while (physicalRadius / (1 << levels) > 16 && levels < 6) levels++;
+                RenderTarget source = scene;
+                for (int i=0; i<levels; i++) {
+                    if (pyramid.size() <= i) pyramid.add(target(Math.max(1,source.width/2),Math.max(1,source.height/2)));
+                    RenderTarget reduced = pyramid.get(i);
+                    pass(source,reduced,0,0,true);
+                    source = reduced;
+                }
+                if (ping == null || ping.width != source.width || ping.height != source.height) {
+                    if (ping != null) ping.destroyBuffers();
+                    if (blurred != null) blurred.destroyBuffers();
+                    ping = target(source.width,source.height);
+                    blurred = target(source.width,source.height);
+                }
+                pass(source, ping, physicalRadius / scene.width, 0,false);
+                pass(ping, blurred, 0, physicalRadius / scene.height,false);
             }
             captured = true;
         } finally {
@@ -78,13 +97,15 @@ public final class GlassRenderer {
         }
     }
 
-    private static void pass(RenderTarget source, RenderTarget destination, float dx, float dy) {
+    private static void pass(RenderTarget source, RenderTarget destination, float dx, float dy, boolean downsample) {
         // Both JSON blend declarations match vanilla's core shaders. Different declarations
         // poison BlendMode's global cache and overwrite the vignette's explicit ZERO blend.
         destination.bindWrite(true);
         RenderSystem.setShader(() -> blurShader);
         blurShader.setSampler("Source", source.getColorTextureId());
         blurShader.safeGetUniform("Direction").set(dx, dy);
+        blurShader.safeGetUniform("SourceTexel").set(1f/source.width,1f/source.height);
+        blurShader.safeGetUniform("Downsample").set(downsample ? 1f : 0f);
         BufferBuilder b = Tesselator.getInstance().getBuilder();
         b.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
         b.vertex(-1, -1, 0).uv(0, 0).endVertex();
@@ -132,7 +153,7 @@ public final class GlassRenderer {
             int glow = configured ? dev.lumaglass.GlassConfig.GLOW_COLOR.get() : 0xffffff;
             if (glowColor != dev.lumaglass.api.client.GlassStyle.GLOBAL_GLOW_COLOR) glow = glowColor;
             float glowStrength = configured ? (dev.lumaglass.GlassConfig.GLOW_ENABLED.get()
-                    ? dev.lumaglass.GlassConfig.GLOW_STRENGTH.get().floatValue() : 0) : 1;
+                    ? dev.lumaglass.GlassConfig.GLOW_STRENGTH.get().floatValue() : 0) : 0;
             glassShader.safeGetUniform("GlowColor").set(((glow >> 16) & 255)/255f, ((glow >> 8) & 255)/255f, (glow & 255)/255f);
             glassShader.safeGetUniform("GlowStrength").set(glowStrength);
             glassShader.safeGetUniform("PixelScale").set(pixelScale);

@@ -4,7 +4,7 @@
 
 实时模糊与折射让菜单、容器和控件透出背景；圆角边缘、可调泛光与独立面板材质可以用于原版界面，也可以由其他模组接入。
 
-**版本：0.2.5 · 作者：Sunny5349 · 许可证：MIT**
+**版本：0.2.8 · 作者：Sunny5349 · 许可证：MIT**
 
 ## 功能
 
@@ -15,15 +15,19 @@
 - 公共 API 支持独立画布、同一背景快照上的多块玻璃、贴图面板及每块面板独立泛光颜色。
 - 支持窗口缩放与资源重载，提供中英文界面。
 
-0.2.5 将创造物品栏的分类底板直接绘制为圆角玻璃，去除未选中页签贴图的暗色凹陷；新增 `GlassStyle.withGlowColor(int)`，原有六参数构造方法继续可用。
+生存和创造背包使用紧凑分区：物品区共用一块玻璃，快捷栏独立成条，装备位使用小面板，人物周围留空，移除逐格凹陷底板。创造分类使用圆形按钮，聊天历史共用一块底板。模糊采用逐级低通缩小和密集高斯采样，泛光默认关闭。旧配置保留已有数值，可在工作室点击“重置”应用新版默认材质。
+
+箱子类界面使用同样的连续玻璃分区，并默认自动适配其他模组复用的原版 UI。0.2.8 补回创造背包的摧毁物品图标；材质默认值改为模糊 15%、折射 24、磨砂 100%、表面色调 0%，泛光关闭。升级后点击工作室“重置”可应用这些默认值并启用其他模组的自动主题。
 
 ![创造物品栏玻璃主题](docs/images/creative-inventory.png)
+
+![大箱子的连续玻璃分区](docs/images/storage-container.png)
 
 ## 安装
 
 需要 Minecraft **1.20.1**、Forge **47.4.22** 和 Java **17**。本模组仅在客户端安装。
 
-1. 将 `lumaglass-0.2.5.jar` 放入该游戏实例的 `mods` 目录。
+1. 将 `lumaglass-0.2.8.jar` 放入该游戏实例的 `mods` 目录。
 2. 升级时移除旧版本，只保留一个 LumaGlass JAR。不要安装 `-sources.jar` 或测试辅助模组。
 3. 启动游戏，原版 UI 主题默认生效。
 
@@ -34,12 +38,12 @@
 | 配置 | 默认值 | 作用 |
 | --- | --- | --- |
 | `vanillaUi` | `true` | 原版界面与 HUD 主题开关 |
-| `otherModUi` | `false` | 是否自动处理其他模组界面中的通用控件 |
-| `blur` | `5.0` | 背景模糊半径，0–16 |
-| `refraction` | `9.0` | 边缘折射强度，0–24 |
-| `frost` | `0.65` | 磨砂混合比例，0–1 |
-| `tint` | `0.12` | 中性底色混合强度，0–0.4 |
-| `glowEnabled` | `true` | 泛光总开关 |
+| `otherModUi` | `true` | 自动处理其他模组复用的原版控件与受支持的容器背景，无需主动适配 |
+| `blur` | `4.8` | 平滑模糊半径，0–32；工作室显示为百分比，默认 15% |
+| `refraction` | `24.0` | 边缘折射强度，0–24 |
+| `frost` | `1.0` | 磨砂混合比例，0–1；1 完全使用模糊背景 |
+| `tint` | `0.0` | 中性底色混合强度，0–0.4 |
+| `glowEnabled` | `false` | 泛光总开关，默认关闭 |
 | `glowColor` | `16777215` | 24 位 RGB 整数，默认白色 |
 | `glowStrength` | `1.0` | 泛光强度，0–2 |
 
@@ -47,7 +51,7 @@
 
 ## API 接入教程
 
-公开包为 `dev.lumaglass.api.client`，`GlassCanvas.API_VERSION = 1`。以下新增独立泛光颜色的用法需要 **LumaGlass 0.2.5 或更高版本**。
+公开包为 `dev.lumaglass.api.client`，`GlassCanvas.API_VERSION = 1`。独立泛光颜色需要 **LumaGlass 0.2.5 或更高版本**；0.2.6 改善模糊质量，调用方式不变。
 
 ### 1. 添加构建依赖
 
@@ -65,7 +69,7 @@ repositories {
 }
 
 dependencies {
-    implementation fg.deobf('dev.lumaglass:lumaglass:0.2.5')
+    implementation fg.deobf('dev.lumaglass:lumaglass:0.2.8')
 }
 ```
 
@@ -77,7 +81,7 @@ dependencies {
 [[dependencies.your_mod_id]]
 modId="lumaglass"
 mandatory=true
-versionRange="[0.2.5,0.3.0)"
+versionRange="[0.2.8,0.3.0)"
 ordering="AFTER"
 side="CLIENT"
 ```
@@ -170,7 +174,7 @@ GlassStyle followUser = pink.withGlobalGlowColor();
 
 ![同一画布上红色、蓝色和全局绿色泛光；下排为贴图面板](docs/images/panel-glow-colors.png)
 
-**泛光总开关和强度仍由用户控制。** 独立颜色不能绕过 `glowEnabled=false`；`glowStrength=0` 时同样不产生泛光。颜色 `0x000000` 可让特定面板没有额外泛光，保留其他材质效果。颜色只影响亮光，不修改纹理图标、文字或背景本身。
+**泛光总开关和强度仍由用户控制，0.2.6 起默认关闭泛光。** 独立颜色不能绕过 `glowEnabled=false`；`glowStrength=0` 时同样不产生泛光。用户在调色盘开启泛光后，独立颜色才会显示。颜色 `0x000000` 可让特定面板没有额外泛光，保留其他材质效果。颜色只影响亮光，不修改纹理图标、文字或背景本身。
 
 ### 4. 绘制带贴图的玻璃面板
 
@@ -199,6 +203,10 @@ try (GlassFrame frame = canvas.begin(graphics, 5.0f)) {
 - `GlassCanvas.isAvailable()` 表示玻璃 shader 已加载。未加载时使用简单半透明矩形回退，回退没有折射或泛光。
 
 ### 6. 接入自动主题
+
+0.2.7 默认开启 `otherModUi`，其他模组使用原版按钮、滑块、输入框、列表、提示框、背景绘制或受支持的原版 GUI 贴图时，无需依赖 LumaGlass 或实现任何接口。箱子、末影箱、木桶、潜影盒、漏斗、发射器和投掷器背景按物品区、玩家背包与快捷栏分区，移除逐格凹陷底板。箱子支持 1–6 行以及原版分段绘制。
+
+自动适配识别实际绘制调用，不扫描模组名称。完全自绘的控件、自定义命名空间的背景贴图以及自建 framebuffer 不会自动重建布局；可使用公开 API 适配。`otherModUi=false` 可以关闭其他模组的自动主题，保留原版主题；`GlassThemedScreen` 可明确选择加入，`GlassThemeExempt` 可明确选择退出。
 
 ```java
 class MyScreen extends Screen implements GlassThemedScreen {

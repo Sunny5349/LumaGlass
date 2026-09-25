@@ -10,7 +10,7 @@
   "screen.lumaglass.drag": "Drag to explore the refraction",
   "screen.lumaglass.on": "GLASS / ON",
   "screen.lumaglass.off": "GLASS / OFF",
-  "screen.lumaglass.blur": "Blur radius",
+  "screen.lumaglass.blur": "Blur strength",
   "screen.lumaglass.refraction": "Refraction",
   "screen.lumaglass.frost": "Frost",
   "screen.lumaglass.tint": "Tint",

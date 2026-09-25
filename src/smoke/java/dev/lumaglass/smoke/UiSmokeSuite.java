@@ -41,7 +41,9 @@ public final class UiSmokeSuite {
             "creative-inventory","language-scrolled","return-title","singleplayer","singleplayer-filter",
             "multiplayer","singleplayer-disabled","glow-palette-red","glow-palette-blue","glow-palette-off",
             "glow-red-probe","glow-blue-probe","glow-off-probe","neutral-tint-probe",
-            "api-panel-colors","api-panel-colors-disabled","creative-tabs-probe"};
+            "api-panel-colors","api-panel-colors-disabled","creative-tabs-probe",
+            "smooth-blur-15","smooth-blur-max","inventory-continuous",
+            "large-chest","shulker-box","hopper","dispenser","mod-theme-disabled","storage-panels"};
     private static boolean worldPrepared;
 
     @SubscribeEvent public static void tick(TickEvent.ClientTickEvent e) {
@@ -65,11 +67,21 @@ public final class UiSmokeSuite {
             }
         }
         age++;
+        if(stage==19 && age==30 && mc.screen instanceof CreativeModeInventoryScreen creative) {
+            int x=creative.getGuiLeft(),y=creative.getGuiTop();
+            creative.mouseClicked(x+175,y+136+16,0);
+            creative.mouseReleased(x+175,y+136+16,0);
+            if(!creative.isInventoryOpen())throw new AssertionError("Circular inventory tab does not accept its centre");
+            creative.mouseClicked(x+1,y-31,0);
+            creative.mouseReleased(x+1,y-31,0);
+            if(!creative.isInventoryOpen())throw new AssertionError("Circular tab accepts outside corner");
+            LogUtils.getLogger().info("LUMAGLASS_ROUND_TAB_INPUT_PASS");
+        }
         if(age>=40 && captured) {
             if(stage==NAMES.length-1) {
                 finished=true;
                 GlassConfig.VANILLA_UI.set(true);
-                GlassConfig.GLOW_ENABLED.set(true); GlassConfig.GLOW_COLOR.set(0xffffff); GlassConfig.GLOW_STRENGTH.set(1.0);
+                GlassConfig.GLOW_ENABLED.set(false); GlassConfig.GLOW_COLOR.set(0xffffff); GlassConfig.GLOW_STRENGTH.set(1.0);
                 GlassConfig.SPEC.save();
                 LogUtils.getLogger().info("LUMAGLASS_SMOKE_PASS: {} screens, API contracts, reload and resize",NAMES.length);
                 mc.stop();
@@ -111,10 +123,14 @@ public final class UiSmokeSuite {
             case 12 -> new OptionsScreen(parent,mc.options);
             case 14 -> new InventoryScreen(mc.player);
             case 15 -> new PauseScreen(true);
-            case 16 -> new ChatScreen("");
+            case 16 -> {
+                for(int i=0;i<5;i++)mc.gui.getChat().addMessage(Component.literal("<GlassTest> Continuous chat message "+(i+1)));
+                yield new ChatScreen("");
+            }
             case 18 -> {GlassConfig.VANILLA_UI.set(false);yield null;}
             case 19 -> {
                 GlassConfig.VANILLA_UI.set(true);
+                mc.gui.getChat().clearMessages(false);
                 mc.gameMode.setLocalMode(net.minecraft.world.level.GameType.CREATIVE);
                 yield new CreativeModeInventoryScreen(mc.player,mc.level.enabledFeatures(),true);
             }
@@ -131,6 +147,11 @@ public final class UiSmokeSuite {
             case 32 -> new NeutralTintHost();
             case 33,34 -> new PanelColorHost();
             case 35 -> new CreativeTabsHost();
+            case 36,37 -> new SmoothBlurHost();
+            case 38 -> new InventoryPanelHost();
+            case 39,40,41,42 -> new ContainerHost();
+            case 43 -> {GlassConfig.OTHER_MOD_UI.set(false);yield new WidgetHost();}
+            case 44 -> {GlassConfig.OTHER_MOD_UI.set(true);yield new StoragePanelHost();}
             default -> new dev.lumaglass.client.GlassScreen(null);
         };
         mc.setScreen(screen);
@@ -139,6 +160,13 @@ public final class UiSmokeSuite {
         }
         if(stage==35) GlassConfig.GLOW_ENABLED.set(false);
         if(stage==26 || stage==27) {
+            if(stage==26) {
+                var toggle=screen.children().stream().filter(c->c instanceof Button)
+                        .map(c->(Button)c).filter(b->b.getMessage().getString().startsWith(Component.translatable("screen.lumaglass.glow").getString()+":"))
+                        .findFirst().orElseThrow();
+                toggle.onPress();
+                if(!GlassConfig.GLOW_ENABLED.get())throw new AssertionError("Glow enable toggle failed");
+            }
             var field=(EditBox)screen.children().stream().filter(c->c instanceof EditBox).findFirst().orElseThrow();
             int old=GlassConfig.GLOW_COLOR.get();
             field.setValue("#F");
@@ -208,6 +236,11 @@ public final class UiSmokeSuite {
         if((stage==13 || stage==18) && Minecraft.getInstance().screen==null) capture(e.getGuiGraphics());
     }
     private static void capture(GuiGraphics graphics) {
+        if(stage==19 && age==32) {
+            graphics.flush();
+            Minecraft mc=Minecraft.getInstance();
+            Screenshot.grab(mc.gameDirectory,"19-creative-player-inventory.png",mc.getMainRenderTarget(),c->{});
+        }
         if(stage<0 || finished || captured || age<25 || (stage==12&&!reloaded))return;
         if(Minecraft.getInstance().getOverlay()!=null)return;
         graphics.flush();
@@ -369,7 +402,7 @@ public final class UiSmokeSuite {
             g.flush();
             if(!checked)try(var image=Screenshot.takeScreenshot(minecraft.getMainRenderTarget())) {
                 double scale=minecraft.getWindow().getGuiScale();
-                for(int i=0;i<4;i++)for(int y=65;y<=76;y++)for(int x=37+70*i;x<49+70*i;x++) {
+                for(int i=0;i<4;i++)for(int y=66;y<=75;y++)for(int x=39+70*i;x<47+70*i;x++) {
                     int p=image.getPixelRGBA((int)(x*scale),(int)(y*scale));
                     if((p&255)<118)throw new AssertionError("Creative tab retains dark atlas face: "+i+" / "+Integer.toHexString(p));
                 }
@@ -378,7 +411,119 @@ public final class UiSmokeSuite {
         }
     }
 
+    private static final class SmoothBlurHost extends Screen implements GlassThemeExempt {
+        private GlassCanvas canvas;
+        private boolean checked;
+        SmoothBlurHost(){super(Component.literal("Smooth blur checkerboard"));}
+        @Override public void render(GuiGraphics g,int mx,int my,float dt) {
+            for(int y=0;y<height;y+=2)for(int x=0;x<width;x+=2)
+                g.fill(x,y,x+2,y+2,((x/2+y/2)%2==0)?0xff000000:0xffffffff);
+            if(canvas==null)canvas=new GlassCanvas();
+            try(var frame=canvas.begin(g,stage==36?4.8f:32f)) {
+                frame.panel(20,20,width-40,height-40,new GlassStyle(16,0,1,0,0,1));
+            }
+            g.flush();
+            if(!checked)try(var image=Screenshot.takeScreenshot(minecraft.getMainRenderTarget())) {
+                double scale=minecraft.getWindow().getGuiScale();
+                int min=255,max=0;
+                for(int y=70;y<height-70;y++)for(int x=70;x<width-70;x++) {
+                    int c=image.getPixelRGBA((int)(x*scale),(int)(y*scale))&255;
+                    min=Math.min(min,c);max=Math.max(max,c);
+                }
+                if(max-min>12 || min<100 || max>155)throw new AssertionError("Blur retains checkerboard: "+min+".."+max);
+                checked=true;LogUtils.getLogger().info("LUMAGLASS_SMOOTH_BLUR_PASS {}: {}..{}",NAMES[stage],min,max);
+            }
+        }
+        @Override public void removed(){if(canvas!=null)canvas.close();}
+    }
+
+    private static final class InventoryPanelHost extends Screen implements GlassThemedScreen {
+        private final boolean[] checked = new boolean[3];
+        InventoryPanelHost(){super(Component.literal("Continuous inventory panels"));}
+        @Override public void render(GuiGraphics g,int mx,int my,float dt) {
+            g.fillGradient(0,0,width,height,0xff808080,0xff808080);
+            String[] paths={"inventory.png","creative_inventory/tab_items.png","creative_inventory/tab_inventory.png"};
+            int index=(age/10)%3;
+            int w=index==0?176:195,h=index==0?166:136;
+            g.blit(new ResourceLocation("minecraft","textures/gui/container/"+paths[index]),20,20,0,0,w,h);
+            g.flush();
+            if(!checked[index])try(var image=Screenshot.takeScreenshot(minecraft.getMainRenderTarget())) {
+                double scale=minecraft.getWindow().getGuiScale();
+                int top=index==0?84:index==1?18:54;
+                int bottom=index==1?104:top+50;
+                for(int y=20+top+4;y<20+bottom;y++)for(int x=40;x<178;x++) {
+                    int c=image.getPixelRGBA((int)(x*scale),(int)(y*scale))&255;
+                    if(c<115)throw new AssertionError("Slot bevel remains: "+c);
+                }
+                if(index!=1) {
+                    int px=index==0?51:88,py=index==0?40:25;
+                    int c=image.getPixelRGBA((int)((20+px)*scale),(int)((20+py)*scale))&255;
+                    if(c!=128)throw new AssertionError("Glass covers player preview: "+c);
+                }
+                if(index==2) {
+                    int bright=0,dark=0;
+                    for(int y=112;y<128;y++)for(int x=173;x<189;x++) {
+                        int c=image.getPixelRGBA((int)((20+x+.5)*scale),(int)((20+y+.5)*scale))&255;
+                        if(c>220)bright++;
+                        if(c<65)dark++;
+                    }
+                    if(bright<35 || dark<15)throw new AssertionError("Destroy glyph missing: "+bright+" / "+dark);
+                    LogUtils.getLogger().info("LUMAGLASS_DESTROY_ICON_PASS");
+                }
+                checked[index]=true;LogUtils.getLogger().info("LUMAGLASS_CONTINUOUS_INVENTORY_PASS {}",paths[index]);
+            }
+        }
+    }
+
+    private static final class StoragePanelHost extends Screen {
+        private final boolean[] checked=new boolean[10];
+        StoragePanelHost(){super(Component.literal("Storage atlas regression"));}
+        @Override public void render(GuiGraphics g,int mx,int my,float dt) {
+            g.fillGradient(0,0,width,height,0xff808080,0xff808080);
+            int index=(age/4)%10;
+            int x=20,y=10;
+            int[][] regions;
+            if(index<6) {
+                int rows=index+1;
+                ResourceLocation texture=new ResourceLocation("textures/gui/container/generic_54.png");
+                g.blit(texture,x,y,0,0,176,rows*18+17);
+                g.blit(texture,x,y+rows*18+17,0,126,176,96);
+                regions=new int[][]{{8,18,160,rows*18-2},{8,rows*18+30,160,52},{8,rows*18+88,160,16}};
+            } else {
+                String path=switch(index){case 6->"shulker_box";case 7->"hopper";case 8->"dispenser";default->"generic_54";};
+                int h=switch(index){case 6->167;case 7->133;case 8->166;default->222;};
+                g.blit(new ResourceLocation("textures/gui/container/"+path+".png"),x,y,0,0,176,h);
+                regions=switch(index) {
+                    case 6 -> new int[][]{{8,18,160,52},{8,84,160,52},{8,142,160,16}};
+                    case 7 -> new int[][]{{44,20,88,16},{8,51,160,52},{8,109,160,16}};
+                    case 8 -> new int[][]{{62,17,52,52},{8,84,160,52},{8,142,160,16}};
+                    default -> new int[][]{{8,18,160,106},{8,139,160,52},{8,197,160,16}};
+                };
+            }
+            g.flush();
+            if(!checked[index])try(var image=Screenshot.takeScreenshot(minecraft.getMainRenderTarget())) {
+                double scale=minecraft.getWindow().getGuiScale();
+                for(int[] r:regions)for(int py=r[1]+3;py<r[1]+r[3]-3;py++)for(int px=r[0]+3;px<r[0]+r[2]-3;px++) {
+                    int c=image.getPixelRGBA((int)((x+px)*scale),(int)((y+py)*scale))&255;
+                    if(c<115)throw new AssertionError("Storage retains slot bevel: variant="+index+", pixel="+c);
+                }
+                // Original outer rectangle must not survive outside the compact slot panels.
+                int corner=image.getPixelRGBA((int)((x+2)*scale),(int)((y+2)*scale))&255;
+                if(corner!=128)throw new AssertionError("Storage retains large outer backing: "+corner);
+                checked[index]=true;
+                LogUtils.getLogger().info("LUMAGLASS_STORAGE_PANEL_PASS variant={}",index);
+            }
+        }
+        @Override public void removed(){for(boolean ok:checked)if(!ok)throw new AssertionError("Storage variant not checked");}
+    }
+
     private static void checkContracts() {
+        Minecraft.getInstance().options.pauseOnLostFocus=false;
+        if(GlassConfig.GLOW_ENABLED.get() || GlassConfig.GLOW_ENABLED.getDefault())
+            throw new AssertionError("Fresh configuration must disable glow");
+        if(!GlassConfig.OTHER_MOD_UI.get() || GlassConfig.REFRACTION.get()!=24
+                || GlassConfig.TINT.get()!=0 || GlassConfig.BLUR.get()!=4.8 || GlassConfig.FROST.get()!=1)
+            throw new AssertionError("Fresh material or automatic mod theme defaults differ");
         GlassConfig.VANILLA_UI.set(true);
         try {new GlassStyle(Float.NaN,1,1,1,1,1);throw new AssertionError("NaN accepted");}catch(IllegalArgumentException expected){}
         try {GlassStyle.CLEAR.withOpacity(2);throw new AssertionError("Invalid opacity accepted");}catch(IllegalArgumentException expected){}
@@ -394,24 +539,36 @@ public final class UiSmokeSuite {
         LogUtils.getLogger().info("LUMAGLASS_API_CONTRACT_PASS");
     }
 
-    private static final class ContainerHost extends Screen implements GlassThemedScreen {
-        private ContainerScreen container;
+    private static final class ContainerHost extends Screen {
+        private net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> container;
         ContainerHost(){super(Component.literal("Container fixture"));}
         @Override protected void init() {
             Inventory inventory=new Inventory(null);
-            ChestMenu menu=ChestMenu.threeRows(0,inventory);
+            net.minecraft.world.inventory.AbstractContainerMenu menu=switch(stage) {
+                case 39 -> ChestMenu.sixRows(0,inventory);
+                case 40 -> new net.minecraft.world.inventory.ShulkerBoxMenu(0,inventory);
+                case 41 -> new net.minecraft.world.inventory.HopperMenu(0,inventory);
+                case 42 -> new net.minecraft.world.inventory.DispenserMenu(0,inventory);
+                default -> ChestMenu.threeRows(0,inventory);
+            };
             menu.slots.get(0).set(new ItemStack(Items.DIAMOND,12));
             menu.slots.get(1).set(new ItemStack(Items.APPLE,8));
             menu.slots.get(2).set(new ItemStack(Items.IRON_PICKAXE));
-            container=new ContainerScreen(menu,inventory,Component.literal("Liquid glass chest"));
+            container=switch(stage) {
+                case 40 -> new net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen((net.minecraft.world.inventory.ShulkerBoxMenu)menu,inventory,Component.literal("Shulker Box"));
+                case 41 -> new net.minecraft.client.gui.screens.inventory.HopperScreen((net.minecraft.world.inventory.HopperMenu)menu,inventory,Component.literal("Hopper"));
+                case 42 -> new net.minecraft.client.gui.screens.inventory.DispenserScreen((net.minecraft.world.inventory.DispenserMenu)menu,inventory,Component.literal("Dispenser"));
+                default -> new ContainerScreen((ChestMenu)menu,inventory,Component.literal("Liquid glass chest"));
+            };
             container.init(minecraft,width,height);
         }
         @Override public void render(GuiGraphics g,int mx,int my,float dt) {
+            if(!dev.lumaglass.client.theme.VanillaGlass.active())throw new AssertionError("Unadapted mod container is not themed");
             container.render(g,container.getGuiLeft()+12,container.getGuiTop()+22,dt);
         }
     }
 
-    private static final class WidgetHost extends Screen implements GlassThemedScreen {
+    private static final class WidgetHost extends Screen {
         WidgetHost(){super(Component.literal("Widgets fixture"));}
         @Override protected void init() {
             addRenderableWidget(Button.builder(Component.literal("Native button"),b->{}).bounds(width/2-100,45,200,20).build());
@@ -422,6 +579,8 @@ public final class UiSmokeSuite {
             addRenderableWidget(new Checkbox(width/2-100,128,200,20,Component.literal("Selected checkbox"),true));
         }
         @Override public void render(GuiGraphics g,int mx,int my,float dt) {
+            if(dev.lumaglass.client.theme.VanillaGlass.active() != (stage!=43))
+                throw new AssertionError("Automatic mod widgets ignore opt-out setting");
             renderBackground(g);super.render(g,mx,my,dt);
             g.renderTooltip(font,Component.literal("Glass tooltip / original text"),width/2-80,160);
         }
