@@ -1,0 +1,178 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+}
+
+version = mod_version
+group = mod_group_id
+base { archivesName = mod_id }
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+java { withSourcesJar() }
+
+sourceSets {
+    apiExample { compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath }
+    smoke {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath + sourceSets.apiExample.output
+        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.apiExample.output
+    }
+    productionSmoke { compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath }
+}
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+    copyIdeResources = true
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.console.level', 'info'
+            mods { "${mod_id}" { source sourceSets.main } }
+        }
+        client {
+            property 'mixin.env.disableRefMap', 'true'
+            args '--mixin.config', 'lumaglass.mixins.json'
+            if (project.hasProperty('glassDemo')) property 'lumaglass.demo', 'true'
+            if (project.hasProperty('glassCapture')) property 'lumaglass.capture', 'true'
+            if (project.hasProperty('glassSmoke')) {
+                workingDirectory project.file('run-lumaglass-test')
+                property 'lumaglass.smoke', 'true'
+                property 'forge.disableVersionCheck', 'true'
+                mods { "${mod_id}" { source sourceSets.smoke; source sourceSets.apiExample } }
+            }
+        }
+        server { args '--nogui' }
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    annotationProcessor 'org.spongepowered:mixin:0.8.5'
+    annotationProcessor files(configurations.compileClasspath)
+}
+
+sourceSets.main.resources.srcDir layout.buildDirectory.dir('generated/mixin')
+tasks.named('compileJava', JavaCompile).configure {
+    dependsOn 'createMcpToSrg'
+    doFirst {
+        layout.buildDirectory.dir('generated/mixin').get().asFile.mkdirs()
+        layout.buildDirectory.dir('mixin').get().asFile.mkdirs()
+    }
+    options.compilerArgs += ['-AmappingTypes=tsrg',
+        "-AreobfTsrgFile=${layout.buildDirectory.file('createMcpToSrg/output.tsrg').get().asFile}",
+        "-AoutTsrgFile=${layout.buildDirectory.file('mixin/mappings.tsrg').get().asFile}",
+        "-AoutRefMapFile=${layout.buildDirectory.file('generated/mixin/lumaglass.refmap.json').get().asFile}"]
+    outputs.file layout.buildDirectory.file('mixin/mappings.tsrg')
+}
+
+// The refmap remaps injection targets, but @Shadow declarations also need bytecode mappings.
+tasks.matching { it.name == 'reobfJar' }.configureEach {
+    extraMappings.from layout.buildDirectory.file('mixin/mappings.tsrg')
+}
+
+// A separate, opt-in test mod exercises the unmodified release JAR under forgeclient.
+tasks.register('productionSmokeJar', Jar) {
+    archiveBaseName = 'lumaglass-smoke'
+    destinationDirectory = layout.buildDirectory.dir('test-mods')
+    from sourceSets.smoke.output
+    from sourceSets.apiExample.output
+    from sourceSets.productionSmoke.output
+    finalizedBy 'reobfProductionSmokeJar'
+}
+reobf { productionSmokeJar {} }
+
+tasks.named('processResources', ProcessResources).configure {
+    dependsOn 'compileJava'
+    def properties = [minecraft_version_range: minecraft_version_range,
+                      forge_version_range: forge_version_range, loader_version_range: loader_version_range,
+                      mod_id: mod_id, mod_name: mod_name, mod_license: mod_license,
+                      mod_version: mod_version, mod_authors: mod_authors, mod_description: mod_description]
+    inputs.properties properties
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) { expand properties }
+}
+
+tasks.named('jar', Jar).configure {
+    from('LICENSE-LumaGlass.txt') { into 'META-INF/licenses' }
+    manifest {
+        attributes('Specification-Title': mod_id,
+                   'Specification-Vendor': mod_authors,
+                   'Specification-Version': '1',
+                   'Implementation-Title': project.name,
+                   'Implementation-Version': mod_version,
+                   'MixinConfigs': 'lumaglass.mixins.json',
+                   'Implementation-Vendor': mod_authors)
+    }
+    finalizedBy 'reobfJar'
+}
+
+tasks.named('sourcesJar', Jar).configure {
+    from('LICENSE-LumaGlass.txt') { into 'META-INF/licenses' }
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+tasks.named('check').configure { dependsOn 'compileApiExampleJava' }
+tasks.register('verifyReleaseMappings') {
+    dependsOn 'reobfJar'
+    inputs.file tasks.named('jar').flatMap { it.archiveFile }
+    inputs.file layout.buildDirectory.file('mixin/mappings.tsrg')
+    doLast {
+        def mappings = layout.buildDirectory.file('mixin/mappings.tsrg').get().asFile.readLines()
+                .findAll { it.startsWith('dev/lumaglass/mixin/') }.collect { it.split(' ') }
+        if (mappings.isEmpty()) throw new GradleException('No Mixin shadow mappings generated')
+        new java.util.zip.ZipFile(tasks.named('jar').get().archiveFile.get().asFile).withCloseable { zip ->
+            mappings.groupBy { it[0] }.each { owner, entries ->
+                def listing = new ByteArrayOutputStream()
+                def jdk = javaToolchains.compilerFor(java.toolchain).get().metadata.installationPath
+                project.exec {
+                    executable jdk.file('bin/javap' + (System.getProperty('os.name').startsWith('Windows') ? '.exe' : '')).asFile
+                    args '-p', '-classpath', tasks.named('jar').get().archiveFile.get().asFile, owner.replace('/', '.')
+                    standardOutput = listing
+                }
+                def declarations = listing.toString('UTF-8')
+                entries.each { entry ->
+                    def oldName = java.util.regex.Pattern.quote(entry[1])
+                    def newName = java.util.regex.Pattern.quote(entry[-1])
+                    if (!(declarations =~ /\b${newName}[;(]/).find() || (declarations =~ /\b${oldName}[;(]/).find()) {
+                        throw new GradleException("Unmapped release shadow: ${owner}.${entry[1]} -> ${entry[-1]}")
+                    }
+                }
+            }
+            if (zip.getEntry('dev/lumaglass/smoke/UiSmokeSuite.class') != null) {
+                throw new GradleException('Test harness leaked into release')
+            }
+        }
+        logger.lifecycle("Verified ${mappings.size()} release shadow mappings")
+    }
+}
+tasks.named('check').configure { dependsOn 'verifyReleaseMappings' }
+tasks.withType(PublishToMavenRepository).configureEach { dependsOn 'verifyReleaseMappings' }
+if (project.hasProperty('glassSmoke')) {
+    tasks.matching { it.name == 'prepareRunClient' }.configureEach { dependsOn 'compileSmokeJava' }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            // ForgeGradle's workspace-only mapped Minecraft artifact is not a mod dependency.
+            pom.withXml {
+                asNode().dependencies.dependency.findAll {
+                    it.groupId.text() == 'net.minecraftforge' && it.artifactId.text() == 'forge'
+                }.each { it.parent().remove(it) }
+            }
+        }
+    }
+    repositories { maven { url = layout.buildDirectory.dir('local-maven') } }
+}
+tasks.withType(PublishToMavenRepository).configureEach { dependsOn 'reobfJar' }
+tasks.withType(GenerateModuleMetadata).configureEach {
+    dependsOn 'reobfJar'
+    doLast {
+        def metadataFile = outputFile.get().asFile
+        def metadata = new groovy.json.JsonSlurper().parse(metadataFile)
+        metadata.variants.each { variant ->
+            variant.dependencies?.removeAll { it.group == 'net.minecraftforge' && it.module == 'forge' }
+        }
+        metadataFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(metadata))
+    }
+}

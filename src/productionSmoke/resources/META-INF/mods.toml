@@ -1,0 +1,13 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+[[mods]]
+modId="lumaglass_smoke"
+version="1.0"
+displayName="LumaGlass Production Test Harness"
+[[dependencies.lumaglass_smoke]]
+modId="lumaglass"
+mandatory=true
+versionRange="[0.2.5,0.3.0)"
+ordering="AFTER"
+side="CLIENT"

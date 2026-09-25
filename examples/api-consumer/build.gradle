@@ -1,0 +1,11 @@
+plugins { id 'net.minecraftforge.gradle' version '[6.0,6.2)' }
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+minecraft { mappings channel: 'official', version: '1.20.1' }
+repositories { maven { url = uri('../../build/local-maven') } }
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.20.1-47.4.22'
+    implementation fg.deobf('dev.lumaglass:lumaglass:0.2.5')
+}
+// Compile the same example against the actual published/reobfuscated artifact.
+sourceSets.main.java.srcDir '../../src/apiExample/java'
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }

@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.lumaglass.mixin.client",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "lumaglass.refmap.json",
+  "client": [
+    "ButtonMixin", "SliderMixin", "EditBoxMixin", "CheckboxMixin",
+    "ScreenMixin", "SelectWorldScreenMixin", "SelectionListMixin", "GuiGraphicsMixin", "TooltipMixin"
+  ],
+  "injectors": { "defaultRequire": 1 }
+}
